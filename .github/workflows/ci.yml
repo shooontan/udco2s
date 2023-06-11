@@ -1,0 +1,55 @@
+name: ci
+
+on:
+  - push
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform.target }}
+    strategy:
+      matrix:
+        platform:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-latest
+            target: armv7-unknown-linux-musleabihf
+    runs-on: ${{ matrix.platform.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install cross
+        run: |
+          curl -s https://api.github.com/repos/cross-rs/cross/releases/latest \
+            | jq -r '.assets[] | select(.name | test("linux-musl")) | .browser_download_url' \
+            | xargs -I @ curl -LO @
+          tar -xz -f cross-*-linux-musl.tar.gz
+          sudo mv ./cross /usr/bin/
+          cross --version
+      - name: Build ${{ matrix.platform.target }}
+        run: |
+          cross build --locked --release --target ${{ matrix.platform.target }}
+      - name: Set artifact version
+        run: |
+          artifact_version=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages | map(select( .name == "udco2s" )) | .[0].version')
+          echo "artifact_version=v${artifact_version}" >> $GITHUB_ENV
+      - name: Rename artifact
+        run: |
+          mv target/${{ matrix.platform.target }}/release/udco2s ./udco2s-${{ matrix.platform.target }}-${{ env.artifact_version }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          path: ./udco2s-${{ matrix.platform.target }}-${{ env.artifact_version }}
+  release:
+    needs: build
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v3
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: artifact/*
