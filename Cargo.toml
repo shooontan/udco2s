@@ -1,0 +1,12 @@
+[package]
+name = "udco2s"
+version = "0.0.0"
+edition = "2021"
+license = "MPL-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4.3.0", features = ["derive"] }
+regex = "1.8.3"
+serialport = "4.2.1"
