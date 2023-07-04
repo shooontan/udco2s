@@ -19,8 +19,8 @@ struct Args {
     format: OutputFormat,
 
     /// Process the output from a serial port only once and then exit
-    #[arg(long, default_value_t = false)]
-    once: bool,
+    #[arg(long, default_value_t = 0)]
+    repeat: u32,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -88,9 +88,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
     let port_name = args.port;
     let output_format = args.format;
-    let once = args.once;
+    let repeat = args.repeat;
 
-    let mut is_first_detected = false;
     let mut serial_buf: Vec<u8> = vec![0; 1000];
 
     // CO2=1230,HUM=56.5,TMP=20.0
@@ -104,6 +103,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     std::io::stdout().flush()?;
 
     let chan_clear_buf = input_service();
+
+    let mut counter: u32 = 0;
 
     loop {
         match chan_clear_buf.try_recv() {
@@ -127,14 +128,18 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let udco2s = UDCO2S::new(co2, hum, tmp);
                 println!("{}", udco2s.format(output_format));
 
-                is_first_detected = true;
+                counter += 1;
             }
             None => {
                 // noop
             }
         }
 
-        if once && is_first_detected {
+        if repeat == 0 {
+            continue;
+        }
+
+        if repeat == counter {
             break;
         }
     }
